@@ -10,6 +10,7 @@ import (
 
 	"ai-knowledge-go/config"
 	"ai-knowledge-go/internal/api/router"
+	"ai-knowledge-go/internal/pkg/idgen"
 	"ai-knowledge-go/internal/repository/mysql"
 	"ai-knowledge-go/internal/repository/redis"
 )
@@ -31,11 +32,11 @@ func main() {
 	// 3. 初始化 Redis
 	redis.InitRedis()
 
-	// // 4. 初始化雪花算法（生成订单号）
-	// if err := idgen.InitSnowflake(1); err != nil {
-	// 	log.Fatalf("❌ 初始化雪花算法失败: %v", err)
-	// }
-	// fmt.Println("✅ 雪花算法初始化成功！")
+	// 4. 初始化雪花算法（生成订单号）
+	if err := idgen.InitSnowflake(1); err != nil {
+		log.Fatalf("❌ 初始化雪花算法失败: %v", err)
+	}
+	fmt.Println("✅ 雪花算法初始化成功！")
 
 	// // 4.5 初始化布隆过滤器（防止缓存穿透）
 	// if err := bloom.InitProductBloom(); err != nil {

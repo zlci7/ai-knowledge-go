@@ -16,7 +16,7 @@ func ChatSend(c *gin.Context) {
 		return
 	}
 
-	resp, err := service.Chat.Chat(req)
+	resp, err := service.Chat.Chat(c.Request.Context(), req)
 	if err != nil {
 		handleServiceError(c, err)
 		return

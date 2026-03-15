@@ -4,26 +4,20 @@ import (
 	"context"
 
 	"ai-knowledge-go/internal/model"
-
-	"gorm.io/gorm"
 )
 
-type ConversationRepository struct {
-	db *gorm.DB
+var Conversation = new(ConversationDao)
+
+type ConversationDao struct{}
+
+func (r *ConversationDao) Create(ctx context.Context, conv *model.Conversation) error {
+	return DB.WithContext(ctx).Create(conv).Error
 }
 
-func NewConversationRepository(db *gorm.DB) *ConversationRepository {
-	return &ConversationRepository{db: db}
-}
-
-func (r *ConversationRepository) Create(ctx context.Context, conv *model.Conversation) error {
-	return r.db.WithContext(ctx).Create(conv).Error
-}
-
-func (r *ConversationRepository) GetByID(ctx context.Context, id uint64) (*model.Conversation, error) {
+func (r *ConversationDao) GetByID(ctx context.Context, convId string) (*model.Conversation, error) {
 	var conv model.Conversation
-	err := r.db.WithContext(ctx).
-		Where("id = ? AND is_deleted = false", id).
+	err := DB.WithContext(ctx).
+		Where("conv_id = ? AND is_deleted = false", convId).
 		First(&conv).Error
 	if err != nil {
 		return nil, err
@@ -31,25 +25,25 @@ func (r *ConversationRepository) GetByID(ctx context.Context, id uint64) (*model
 	return &conv, nil
 }
 
-func (r *ConversationRepository) ListByUserID(ctx context.Context, userID uint64) ([]model.Conversation, error) {
+func (r *ConversationDao) ListByUserID(ctx context.Context, userID uint64) ([]model.Conversation, error) {
 	var convs []model.Conversation
-	err := r.db.WithContext(ctx).
+	err := DB.WithContext(ctx).
 		Where("user_id = ? AND is_deleted = false", userID).
 		Order("updated_at DESC").
 		Find(&convs).Error
 	return convs, err
 }
 
-func (r *ConversationRepository) SoftDelete(ctx context.Context, id, userID uint64) error {
-	return r.db.WithContext(ctx).
+func (r *ConversationDao) SoftDelete(ctx context.Context, id, userID uint64) error {
+	return DB.WithContext(ctx).
 		Model(&model.Conversation{}).
-		Where("id = ? AND user_id = ?", id, userID).
+		Where("conv_id = ? AND user_id = ?", id, userID).
 		Update("is_deleted", true).Error
 }
 
-func (r *ConversationRepository) UpdateTitle(ctx context.Context, id uint64, title string) error {
-	return r.db.WithContext(ctx).
+func (r *ConversationDao) UpdateTitle(ctx context.Context, convId string, title string) error {
+	return DB.WithContext(ctx).
 		Model(&model.Conversation{}).
-		Where("id = ?", id).
+		Where("conv_id = ?", convId).
 		Update("title", title).Error
 }
