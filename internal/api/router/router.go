@@ -21,7 +21,7 @@ func InitRouter() *gin.Engine {
 	v1 := r.Group("/api")
 	{
 		UserRoutes(v1)
-
+		ChatRoutes(v1)
 	}
 
 	return r

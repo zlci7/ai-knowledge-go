@@ -10,7 +10,8 @@ import (
 
 	"ai-knowledge-go/config"
 	"ai-knowledge-go/internal/api/router"
-	"ai-knowledge-go/internal/dao"
+	"ai-knowledge-go/internal/repository/mysql"
+	"ai-knowledge-go/internal/repository/redis"
 )
 
 func main() {
@@ -25,10 +26,10 @@ func main() {
 	fmt.Println("✅ 配置加载成功！")
 
 	// 2. 初始化数据库 (MySQL)
-	dao.InitMySQL()
+	mysql.InitMySQL()
 
 	// 3. 初始化 Redis
-	dao.InitRedis()
+	redis.InitRedis()
 
 	// // 4. 初始化雪花算法（生成订单号）
 	// if err := idgen.InitSnowflake(1); err != nil {
@@ -85,14 +86,14 @@ func main() {
 	fmt.Println("\n🛑 收到停止信号，正在关闭...")
 
 	// 关闭数据库连接
-	if sqlDB, err := dao.DB.DB(); err == nil {
+	if sqlDB, err := mysql.DB.DB(); err == nil {
 		sqlDB.Close()
 		fmt.Println("✅ 数据库连接已关闭")
 	}
 
 	// 关闭 Redis 连接
-	if dao.Rdb != nil {
-		dao.Rdb.Close()
+	if redis.Rdb != nil {
+		redis.Rdb.Close()
 		fmt.Println("✅ Redis 连接已关闭")
 	}
 

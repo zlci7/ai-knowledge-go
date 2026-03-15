@@ -1,53 +1,28 @@
 package mysql
 
-import (
-	"context"
+import "ai-knowledge-go/internal/model"
 
-	"ai-knowledge-go/internal/model"
+var User = new(UserDao)
 
-	"gorm.io/gorm"
-)
+type UserDao struct{}
 
-type UserRepository struct {
-	db *gorm.DB
-}
-
-func NewUserRepository(db *gorm.DB) *UserRepository {
-	return &UserRepository{db: db}
-}
-
-func (r *UserRepository) Create(ctx context.Context, user *model.User) error {
-	return r.db.WithContext(ctx).Create(user).Error
-}
-
-func (r *UserRepository) GetByID(ctx context.Context, id uint64) (*model.User, error) {
-	var user model.User
-	if err := r.db.WithContext(ctx).First(&user, id).Error; err != nil {
-		return nil, err
-	}
-	return &user, nil
-}
-
-func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*model.User, error) {
-	var user model.User
-	if err := r.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
-		return nil, err
-	}
-	return &user, nil
-}
-
-func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
-	var user model.User
-	if err := r.db.WithContext(ctx).Where("email = ?", email).First(&user).Error; err != nil {
-		return nil, err
-	}
-	return &user, nil
-}
-
-func (r *UserRepository) ExistsByUsernameOrEmail(ctx context.Context, username, email string) (bool, error) {
+// ExistOrNotByPhone 判断手机号是否存在
+func (d *UserDao) ExistOrNotByUsername(username string) (exist bool, err error) {
 	var count int64
-	err := r.db.WithContext(ctx).Model(&model.User{}).
-		Where("username = ? OR email = ?", username, email).
-		Count(&count).Error
-	return count > 0, err
+	err = DB.Model(&model.User{}).Where("username = ?", username).Count(&count).Error
+	if count > 0 {
+		return true, err
+	}
+	return false, err
+}
+
+// CreateUser 创建用户
+func (d *UserDao) CreateUser(user *model.User) error {
+	return DB.Model(&model.User{}).Create(user).Error
+}
+
+// GetUserByPhone 根据手机号获取用户
+func (d *UserDao) GetUserByUsername(username string) (user *model.User, err error) {
+	err = DB.Model(&model.User{}).Where("username = ?", username).First(&user).Error
+	return
 }

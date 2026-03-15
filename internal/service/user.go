@@ -4,11 +4,11 @@ import (
 	"ai-knowledge-go/config"
 	"ai-knowledge-go/internal/api/dto"
 	"ai-knowledge-go/internal/api/vo"
-	"ai-knowledge-go/internal/dao"
 	"ai-knowledge-go/internal/model"
 	"ai-knowledge-go/internal/pkg/encrypt"
 	"ai-knowledge-go/internal/pkg/jwtx"
 	"ai-knowledge-go/internal/pkg/xerr"
+	"ai-knowledge-go/internal/repository/mysql"
 	"time"
 )
 
@@ -19,7 +19,7 @@ var User = new(UserService)
 // Register 接收 DTO，返回 VO
 func (s *UserService) Register(req dto.UserRegisterReq) (*vo.UserRegisterResp, error) {
 	// 1. 业务校验
-	exist, err := dao.User.ExistOrNotByUsername(req.Username)
+	exist, err := mysql.User.ExistOrNotByUsername(req.Username)
 	if err != nil {
 		return nil, xerr.NewErrCode(xerr.DB_ERROR)
 	}
@@ -40,7 +40,7 @@ func (s *UserService) Register(req dto.UserRegisterReq) (*vo.UserRegisterResp, e
 	}
 
 	// 4. 调用 DAO 保存（传 Model）
-	if err := dao.User.CreateUser(userModel); err != nil {
+	if err := mysql.User.CreateUser(userModel); err != nil {
 		return nil, xerr.NewErrCode(xerr.USER_CREATE_ERROR)
 	}
 
@@ -57,7 +57,7 @@ func (s *UserService) Register(req dto.UserRegisterReq) (*vo.UserRegisterResp, e
 // Login 接收 DTO，返回 VO
 func (s *UserService) Login(req dto.UserLoginReq) (*vo.UserLoginResp, error) {
 	// 1. 查找用户（DAO 返回 Model）
-	user, err := dao.User.GetUserByUsername(req.Username)
+	user, err := mysql.User.GetUserByUsername(req.Username)
 	if err != nil {
 		return nil, xerr.NewErrCode(xerr.USER_NOT_FOUND)
 	}

@@ -1,4 +1,4 @@
-package dao
+package mysql
 
 import (
 	"ai-knowledge-go/config"
