@@ -22,7 +22,8 @@ type ChatStreamEvent struct {
 	Error          string `json:"error,omitempty"`
 }
 
-func (s *ChatService) ChatStream(ctx context.Context, req dto.ChatReq) (<-chan ChatStreamEvent, error) {
+// 流式对话
+func (s *ChatService) ChatStream(ctx context.Context, userID uint64, req dto.ChatReq) (<-chan ChatStreamEvent, error) {
 	if req.ConversationID == "" {
 		title, err := llm.GenerateNewTitle(req.Message)
 		if err != nil {
@@ -32,7 +33,7 @@ func (s *ChatService) ChatStream(ctx context.Context, req dto.ChatReq) (<-chan C
 		err = mysql.Conversation.Create(ctx, &model.Conversation{
 			ConvID:    convID,
 			Title:     title,
-			UserID:    0,
+			UserID:    userID,
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 			IsDeleted: false,
@@ -63,9 +64,27 @@ func (s *ChatService) ChatStream(ctx context.Context, req dto.ChatReq) (<-chan C
 	}
 
 	llmContext := []llm.Message{{Role: "system", Content: "You are a helpful assistant."}}
+
+	retrievalCtx, cancel := context.WithTimeout(ctx, longTermMemoryBudgetTimeout*time.Millisecond)
+	longTermMemories, err := retrieveLongTermMemories(retrievalCtx, userID, req.Message)
+	cancel()
+	if err == nil && len(longTermMemories) > 0 {
+		longTermMemoryPrompt := formatLongTermMemorySystemPrompt(longTermMemories)
+		if longTermMemoryPrompt != "" {
+			llmContext = append(llmContext, llm.Message{Role: "system", Content: longTermMemoryPrompt})
+		}
+	}
+
 	if summary != "" {
 		llmContext = append(llmContext, llm.Message{Role: "system", Content: "[对话摘要]: " + summary})
 	}
+
+	// RAG 注入位：当前未实现检索时不注入占位内容，避免脏提示词。
+	ragContext := ""
+	if ragContext != "" {
+		llmContext = append(llmContext, llm.Message{Role: "system", Content: "[RAG召回]: " + ragContext})
+	}
+
 	for _, msg := range msgs {
 		llmContext = append(llmContext, llm.Message{Role: msg.Role, Content: msg.Content})
 	}
@@ -168,6 +187,7 @@ func (s *ChatService) ChatStream(ctx context.Context, req dto.ChatReq) (<-chan C
 	return streamEvents, nil
 }
 
+// 发送流式事件
 func emitStreamEvent(ctx context.Context, out chan<- ChatStreamEvent, event ChatStreamEvent) bool {
 	select {
 	case out <- event:

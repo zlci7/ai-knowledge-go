@@ -25,7 +25,8 @@ func ChatStream(c *gin.Context) {
 		return
 	}
 
-	eventCh, err := service.Chat.ChatStream(c.Request.Context(), req)
+	userID := uint64(c.GetUint("user_id"))
+	eventCh, err := service.Chat.ChatStream(c.Request.Context(), userID, req)
 	if err != nil {
 		handleServiceError(c, err)
 		return

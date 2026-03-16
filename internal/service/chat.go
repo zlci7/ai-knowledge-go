@@ -16,7 +16,7 @@ type ChatService struct{}
 
 var Chat = new(ChatService)
 
-func (s *ChatService) Chat(ctx context.Context, req dto.ChatReq) (*vo.ChatResp, error) {
+func (s *ChatService) Chat(ctx context.Context, userID uint64, req dto.ChatReq) (*vo.ChatResp, error) {
 
 	// 创建新会话
 	if req.ConversationID == "" {
@@ -30,7 +30,7 @@ func (s *ChatService) Chat(ctx context.Context, req dto.ChatReq) (*vo.ChatResp, 
 		err = mysql.Conversation.Create(ctx, &model.Conversation{
 			ConvID:    convID,
 			Title:     title,
-			UserID:    0,
+			UserID:    userID,
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 			IsDeleted: false,

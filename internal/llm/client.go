@@ -3,16 +3,22 @@ package llm
 import (
 	"ai-knowledge-go/config"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 // GenerateFromSinglePrompt 发送单轮对话请求到 LLM，返回模型的文字回复。
 // 每次调用都是无状态的独立请求，不携带历史消息，适合单轮问答场景。
 // 如需多轮对话，应改用接收 []Message 的函数并自行维护上下文。
 func GenerateFromSinglePrompt(prompt string) (string, error) {
+	return GenerateFromSinglePromptWithContext(context.Background(), prompt)
+}
+
+func GenerateFromSinglePromptWithContext(ctx context.Context, prompt string) (string, error) {
 
 	// 构建请求体：system 设定角色，user 携带本次输入
 	requestBody := RequestBody{
@@ -29,7 +35,11 @@ func GenerateFromSinglePrompt(prompt string) (string, error) {
 
 	// 创建 HTTP 请求，使用 OpenAI 兼容接口
 	// 新加坡地域替换为：https://dashscope-intl.aliyuncs.com/...
-	req, err := http.NewRequest("POST", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", bytes.NewBuffer(jsonData))
+	baseURL := strings.TrimRight(config.AppConfig.Dashscope.BaseURL, "/")
+	if baseURL == "" {
+		baseURL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("create request: %w", err)
 	}
@@ -80,7 +90,11 @@ func GenerateFromMessages(messages []Message) (string, error) {
 	}
 	// 创建 HTTP 请求，使用 OpenAI 兼容接口
 	// 新加坡地域替换为：https://dashscope-intl.aliyuncs.com/...
-	req, err := http.NewRequest("POST", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", bytes.NewBuffer(jsonData))
+	baseURL := strings.TrimRight(config.AppConfig.Dashscope.BaseURL, "/")
+	if baseURL == "" {
+		baseURL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+	}
+	req, err := http.NewRequest("POST", baseURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("create request: %w", err)
 	}

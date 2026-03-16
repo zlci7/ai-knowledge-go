@@ -16,7 +16,8 @@ func ChatSend(c *gin.Context) {
 		return
 	}
 
-	resp, err := service.Chat.Chat(c.Request.Context(), req)
+	userID := uint64(c.GetUint("user_id"))
+	resp, err := service.Chat.Chat(c.Request.Context(), userID, req)
 	if err != nil {
 		handleServiceError(c, err)
 		return

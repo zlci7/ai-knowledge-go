@@ -29,7 +29,11 @@ func GenerateFromMessagesStream(ctx context.Context, messages []Message, out cha
 		return
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", bytes.NewBuffer(jsonData))
+	baseURL := strings.TrimRight(config.AppConfig.Dashscope.BaseURL, "/")
+	if baseURL == "" {
+		baseURL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
 		emitChunk(ctx, out, StreamChunk{Err: fmt.Errorf("create request: %w", err)})
 		return
