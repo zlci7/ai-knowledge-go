@@ -10,5 +10,6 @@ func ChatRoutes(rg *gin.RouterGroup) {
 	chatGroup := rg.Group("/chat")
 	{
 		chatGroup.POST("/send", handler.ChatSend)
+		chatGroup.POST("/stream", handler.ChatStream)
 	}
 }

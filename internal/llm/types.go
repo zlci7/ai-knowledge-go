@@ -8,6 +8,7 @@ type Message struct {
 type RequestBody struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
+	Stream   bool      `json:"stream,omitempty"`
 }
 
 // responseBody mirrors the OpenAI-compatible response envelope.
