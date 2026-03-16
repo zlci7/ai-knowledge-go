@@ -3,10 +3,6 @@ package service
 import (
 	"ai-knowledge-go/internal/api/dto"
 	"ai-knowledge-go/internal/llm"
-	"ai-knowledge-go/internal/model"
-	"ai-knowledge-go/internal/pkg/idgen"
-	"ai-knowledge-go/internal/repository/mysql"
-	"ai-knowledge-go/internal/repository/redis"
 	"context"
 	"errors"
 	"strings"
@@ -24,69 +20,9 @@ type ChatStreamEvent struct {
 
 // 流式对话
 func (s *ChatService) ChatStream(ctx context.Context, userID uint64, req dto.ChatReq) (<-chan ChatStreamEvent, error) {
-	if req.ConversationID == "" {
-		title, err := llm.GenerateNewTitle(req.Message)
-		if err != nil {
-			return nil, err
-		}
-		convID := idgen.GenStringID()
-		err = mysql.Conversation.Create(ctx, &model.Conversation{
-			ConvID:    convID,
-			Title:     title,
-			UserID:    userID,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-			IsDeleted: false,
-		})
-		if err != nil {
-			return nil, err
-		}
-		req.ConversationID = convID
-	}
-
-	unlock, err := redis.AcquireConversationLock(ctx, req.ConversationID, streamConversationLockTTL)
+	llmContext, unlock, err := s.prepareChatContext(ctx, userID, &req, streamConversationLockTTL)
 	if err != nil {
 		return nil, err
-	}
-
-	msgs, summary, err := redis.AddAndGetContext(ctx, req.ConversationID, redis.Message{
-		Role:    "user",
-		Content: req.Message,
-	})
-	if err != nil {
-		unlock()
-		return nil, err
-	}
-
-	if err := Save2Mysql(ctx, req.ConversationID, "user", req.Message); err != nil {
-		unlock()
-		return nil, err
-	}
-
-	llmContext := []llm.Message{{Role: "system", Content: "You are a helpful assistant."}}
-
-	retrievalCtx, cancel := context.WithTimeout(ctx, longTermMemoryBudgetTimeout*time.Millisecond)
-	longTermMemories, err := retrieveLongTermMemories(retrievalCtx, userID, req.Message)
-	cancel()
-	if err == nil && len(longTermMemories) > 0 {
-		longTermMemoryPrompt := formatLongTermMemorySystemPrompt(longTermMemories)
-		if longTermMemoryPrompt != "" {
-			llmContext = append(llmContext, llm.Message{Role: "system", Content: longTermMemoryPrompt})
-		}
-	}
-
-	if summary != "" {
-		llmContext = append(llmContext, llm.Message{Role: "system", Content: "[对话摘要]: " + summary})
-	}
-
-	// RAG 注入位：当前未实现检索时不注入占位内容，避免脏提示词。
-	ragContext := ""
-	if ragContext != "" {
-		llmContext = append(llmContext, llm.Message{Role: "system", Content: "[RAG召回]: " + ragContext})
-	}
-
-	for _, msg := range msgs {
-		llmContext = append(llmContext, llm.Message{Role: msg.Role, Content: msg.Content})
 	}
 
 	streamEvents := make(chan ChatStreamEvent, 32)
@@ -148,28 +84,7 @@ func (s *ChatService) ChatStream(ctx context.Context, userID uint64, req dto.Cha
 			return
 		}
 
-		if strings.TrimSpace(reply) == "" {
-			emitStreamEvent(ctx, streamEvents, ChatStreamEvent{
-				Type:           "error",
-				ConversationID: convID,
-				Error:          "empty assistant reply",
-			})
-			return
-		}
-
-		if err := Save2Mysql(ctx, convID, "assistant", reply); err != nil {
-			emitStreamEvent(ctx, streamEvents, ChatStreamEvent{
-				Type:           "error",
-				ConversationID: convID,
-				Error:          err.Error(),
-			})
-			return
-		}
-
-		if err := redis.SaveAssistantReply(ctx, convID, redis.Message{
-			Role:    "assistant",
-			Content: reply,
-		}); err != nil {
+		if err := s.persistAssistantReply(ctx, convID, reply); err != nil {
 			emitStreamEvent(ctx, streamEvents, ChatStreamEvent{
 				Type:           "error",
 				ConversationID: convID,

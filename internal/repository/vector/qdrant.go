@@ -14,27 +14,52 @@ import (
 )
 
 var Qdrant = new(QdrantRepository)
+var KnowledgeQdrant = new(KnowledgeQdrantRepository)
 
 // InitQdrant 初始化全局 Qdrant 客户端并确保集合存在
 func InitQdrant(ctx context.Context) error {
 	baseURL := fmt.Sprintf("http://%s:%d", config.AppConfig.Qdrant.Host, config.AppConfig.Qdrant.Port)
-	Qdrant.baseURL = strings.TrimRight(baseURL, "/")
-	Qdrant.collection = config.AppConfig.Qdrant.Collection
-	Qdrant.client = &http.Client{Timeout: 10 * time.Second}
-	return Qdrant.EnsureCollection(ctx)
+	trimmedBaseURL := strings.TrimRight(baseURL, "/")
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	Qdrant.baseURL = trimmedBaseURL
+	Qdrant.collection = config.AppConfig.Qdrant.MemoryCollection
+	Qdrant.client = client
+
+	KnowledgeQdrant.baseURL = trimmedBaseURL
+	KnowledgeQdrant.collection = config.AppConfig.Qdrant.KnowledgeCollection
+	KnowledgeQdrant.client = client
+
+	if err := Qdrant.EnsureCollection(ctx); err != nil {
+		return err
+	}
+	return KnowledgeQdrant.EnsureCollection(ctx)
 }
 
 // EnsureCollection 确保指定的 Qdrant 向量集合已创建，不存在则创建
 func (r *QdrantRepository) EnsureCollection(ctx context.Context) error {
-	if r.client == nil {
+	return ensureCollection(ctx, r.client, r.baseURL, r.collection)
+}
+
+// EnsureCollection 确保知识文档集合存在
+func (r *KnowledgeQdrantRepository) EnsureCollection(ctx context.Context) error {
+	return ensureCollection(ctx, r.client, r.baseURL, r.collection)
+}
+
+func ensureCollection(ctx context.Context, client *http.Client, baseURL, collection string) error {
+	if client == nil {
 		return fmt.Errorf("qdrant client is not initialized")
 	}
-	getURL := fmt.Sprintf("%s/collections/%s", r.baseURL, r.collection)
+	if collection == "" {
+		return fmt.Errorf("qdrant collection is empty")
+	}
+
+	getURL := fmt.Sprintf("%s/collections/%s", baseURL, collection)
 	req, err := http.NewRequestWithContext(ctx, "GET", getURL, nil)
 	if err != nil {
 		return fmt.Errorf("create qdrant get collection request: %w", err)
 	}
-	resp, err := r.client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("get qdrant collection: %w", err)
 	}
@@ -47,7 +72,7 @@ func (r *QdrantRepository) EnsureCollection(ctx context.Context) error {
 		return fmt.Errorf("qdrant get collection status: %d", resp.StatusCode)
 	}
 
-	createURL := fmt.Sprintf("%s/collections/%s", r.baseURL, r.collection)
+	createURL := fmt.Sprintf("%s/collections/%s", baseURL, collection)
 	reqBody := map[string]any{
 		"vectors": map[string]any{
 			"size":     config.AppConfig.Dashscope.EmbeddingDimension,
@@ -65,7 +90,7 @@ func (r *QdrantRepository) EnsureCollection(ctx context.Context) error {
 	}
 	createReq.Header.Set("Content-Type", "application/json")
 
-	createResp, err := r.client.Do(createReq)
+	createResp, err := client.Do(createReq)
 	if err != nil {
 		return fmt.Errorf("create qdrant collection: %w", err)
 	}
@@ -99,6 +124,83 @@ func (r *QdrantRepository) UpsertMemoryPoint(ctx context.Context, memory *model.
 		},
 	}
 	return r.doJSON(ctx, "PUT", url, reqBody)
+}
+
+// UpsertKnowledgeChunks 批量写入文档分块向量
+func (r *KnowledgeQdrantRepository) UpsertKnowledgeChunks(ctx context.Context, chunks []KnowledgeChunkPoint) error {
+	if r.client == nil {
+		return fmt.Errorf("qdrant client is not initialized")
+	}
+	if len(chunks) == 0 {
+		return nil
+	}
+
+	points := make([]map[string]any, 0, len(chunks))
+	for _, chunk := range chunks {
+		points = append(points, map[string]any{
+			"id":     chunk.ID,
+			"vector": chunk.Vector,
+			"payload": map[string]any{
+				"kb_id":       chunk.KBID,
+				"doc_id":      chunk.DocID,
+				"doc_name":    chunk.DocName,
+				"doc_type":    chunk.DocType,
+				"project":     chunk.Project,
+				"tags":        chunk.Tags,
+				"chunk_index": chunk.ChunkIndex,
+				"content":     chunk.Content,
+				"created_at":  time.Now().Format(time.RFC3339),
+			},
+		})
+	}
+
+	url := fmt.Sprintf("%s/collections/%s/points?wait=true", r.baseURL, r.collection)
+	reqBody := map[string]any{"points": points}
+	return doJSONWithClient(ctx, r.client, "PUT", url, reqBody)
+}
+
+// DeleteKnowledgeByDocument 删除指定文档的所有分块向量
+func (r *KnowledgeQdrantRepository) DeleteKnowledgeByDocument(ctx context.Context, kbID, docID uint64) error {
+	if r.client == nil {
+		return fmt.Errorf("qdrant client is not initialized")
+	}
+
+	url := fmt.Sprintf("%s/collections/%s/points/delete?wait=true", r.baseURL, r.collection)
+	reqBody := map[string]any{
+		"filter": map[string]any{
+			"must": []map[string]any{
+				{
+					"key": "kb_id",
+					"match": map[string]any{
+						"value": kbID,
+					},
+				},
+				{
+					"key": "doc_id",
+					"match": map[string]any{
+						"value": docID,
+					},
+				},
+			},
+		},
+	}
+	return doJSONWithClient(ctx, r.client, "POST", url, reqBody)
+}
+
+// DeleteKnowledgePoints 按 point IDs 删除，用于上传失败回滚
+func (r *KnowledgeQdrantRepository) DeleteKnowledgePoints(ctx context.Context, pointIDs []uint64) error {
+	if r.client == nil {
+		return fmt.Errorf("qdrant client is not initialized")
+	}
+	if len(pointIDs) == 0 {
+		return nil
+	}
+
+	url := fmt.Sprintf("%s/collections/%s/points/delete?wait=true", r.baseURL, r.collection)
+	reqBody := map[string]any{
+		"points": pointIDs,
+	}
+	return doJSONWithClient(ctx, r.client, "POST", url, reqBody)
 }
 
 // DeleteMemoryPoint 根据记忆 ID 从 Qdrant 中删除对应向量点
@@ -204,6 +306,10 @@ func (r *QdrantRepository) SearchMemoryPoints(ctx context.Context, userID uint64
 
 // doJSON 将任意请求体编码为 JSON 并发送 HTTP 请求，校验 Qdrant 响应状态
 func (r *QdrantRepository) doJSON(ctx context.Context, method, url string, body any) error {
+	return doJSONWithClient(ctx, r.client, method, url, body)
+}
+
+func doJSONWithClient(ctx context.Context, client *http.Client, method, url string, body any) error {
 	data, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("marshal qdrant request body: %w", err)
@@ -215,7 +321,7 @@ func (r *QdrantRepository) doJSON(ctx context.Context, method, url string, body 
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := r.client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("qdrant request failed: %w", err)
 	}

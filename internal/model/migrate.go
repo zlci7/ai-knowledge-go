@@ -9,6 +9,7 @@ func Migrate(db *gorm.DB) error {
 		&Conversation{},
 		&Message{},
 		&LongTermMemory{},
+		&Document{},
 	)
 	return err
 }

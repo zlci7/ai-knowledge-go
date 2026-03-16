@@ -31,6 +31,15 @@ const (
 	MEMORY_LIST_ERROR   = 300002 // 长期记忆查询失败
 	MEMORY_DELETE_ERROR = 300003 // 长期记忆删除失败
 	MEMORY_NOT_FOUND    = 300004 // 长期记忆不存在
+
+	// 知识文档模块错误码 (400xxx)
+	DOCUMENT_UPLOAD_ERROR       = 400001 // 文档上传失败
+	DOCUMENT_LIST_ERROR         = 400002 // 文档查询失败
+	DOCUMENT_DELETE_ERROR       = 400003 // 文档删除失败
+	DOCUMENT_NOT_FOUND          = 400004 // 文档不存在
+	KNOWLEDGE_BASE_NOT_FOUND    = 400005 // 知识库不存在
+	DOCUMENT_PARAM_ERROR        = 400006 // 文档参数错误
+	DOCUMENT_UNSUPPORTED_FORMAT = 400007 // 文档格式不支持
 )
 
 // CodeError 自定义错误结构体

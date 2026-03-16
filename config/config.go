@@ -15,6 +15,8 @@ type Config struct {
 	Dashscope DashscopeConfig `mapstructure:"dashscope"`
 	Qdrant    QdrantConfig    `mapstructure:"qdrant"`
 	Memory    MemoryConfig    `mapstructure:"memory"`
+	Knowledge KnowledgeConfig `mapstructure:"knowledge"`
+	Tika      TikaConfig      `mapstructure:"tika"`
 }
 
 type ServerConfig struct {
@@ -49,9 +51,11 @@ type DashscopeConfig struct {
 }
 
 type QdrantConfig struct {
-	Host       string `mapstructure:"host"`
-	Port       int    `mapstructure:"port"`
-	Collection string `mapstructure:"collection"`
+	Host                string `mapstructure:"host"`
+	Port                int    `mapstructure:"port"`
+	Collection          string `mapstructure:"collection"`
+	MemoryCollection    string `mapstructure:"memory_collection"`
+	KnowledgeCollection string `mapstructure:"knowledge_collection"`
 }
 
 type MemoryConfig struct {
@@ -62,6 +66,17 @@ type MemoryAsyncConfig struct {
 	RetryMax         int    `mapstructure:"retry_max"`
 	RetryBaseSeconds int    `mapstructure:"retry_base_seconds"`
 	QueueKeyPrefix   string `mapstructure:"queue_key_prefix"`
+}
+
+type KnowledgeConfig struct {
+	DefaultKBID      uint64 `mapstructure:"default_kb_id"`
+	UploadMaxSizeMB  int64  `mapstructure:"upload_max_size_mb"`
+	UploadTimeoutSec int    `mapstructure:"upload_timeout_sec"`
+	StorageDir       string `mapstructure:"storage_dir"`
+}
+
+type TikaConfig struct {
+	URL string `mapstructure:"url"`
 }
 
 // 全局配置实例
@@ -101,8 +116,15 @@ func applyDefaults(cfg *Config) {
 	if cfg.Qdrant.Port <= 0 {
 		cfg.Qdrant.Port = 6333
 	}
-	if cfg.Qdrant.Collection == "" {
-		cfg.Qdrant.Collection = "long_term_memories"
+	if cfg.Qdrant.MemoryCollection == "" {
+		if cfg.Qdrant.Collection != "" {
+			cfg.Qdrant.MemoryCollection = cfg.Qdrant.Collection
+		} else {
+			cfg.Qdrant.MemoryCollection = "long_term_memories"
+		}
+	}
+	if cfg.Qdrant.KnowledgeCollection == "" {
+		cfg.Qdrant.KnowledgeCollection = "knowledge_chunks"
 	}
 	if cfg.Memory.Async.RetryMax <= 0 {
 		cfg.Memory.Async.RetryMax = 3
@@ -112,5 +134,20 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Memory.Async.QueueKeyPrefix == "" {
 		cfg.Memory.Async.QueueKeyPrefix = "memory:vector"
+	}
+	if cfg.Knowledge.DefaultKBID == 0 {
+		cfg.Knowledge.DefaultKBID = 1
+	}
+	if cfg.Knowledge.UploadMaxSizeMB <= 0 {
+		cfg.Knowledge.UploadMaxSizeMB = 10
+	}
+	if cfg.Knowledge.UploadTimeoutSec <= 0 {
+		cfg.Knowledge.UploadTimeoutSec = 60
+	}
+	if cfg.Knowledge.StorageDir == "" {
+		cfg.Knowledge.StorageDir = "components/uploads/documents"
+	}
+	if cfg.Tika.URL == "" {
+		cfg.Tika.URL = "http://127.0.0.1:9998"
 	}
 }

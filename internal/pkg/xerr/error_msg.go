@@ -31,6 +31,15 @@ func init() {
 	message[MEMORY_DELETE_ERROR] = "长期记忆删除失败"
 	message[MEMORY_NOT_FOUND] = "记忆不存在"
 
+	// --- 知识文档模块错误 400xxx ---
+	message[DOCUMENT_UPLOAD_ERROR] = "文档上传失败"
+	message[DOCUMENT_LIST_ERROR] = "文档查询失败"
+	message[DOCUMENT_DELETE_ERROR] = "文档删除失败"
+	message[DOCUMENT_NOT_FOUND] = "文档不存在"
+	message[KNOWLEDGE_BASE_NOT_FOUND] = "知识库不存在"
+	message[DOCUMENT_PARAM_ERROR] = "文档参数错误"
+	message[DOCUMENT_UNSUPPORTED_FORMAT] = "文档格式不支持"
+
 }
 
 func MapErrMsg(errcode uint32) string {
