@@ -21,7 +21,7 @@ func Save2Mysql(ctx context.Context, convID string, role model.MessageRole, cont
 		return err
 	}
 
-	mysql.Message.Create(ctx, &model.Message{
+	err = mysql.Message.Create(ctx, &model.Message{
 		MsgID:     idgen.GenStringID(),
 		ConvID:    convID,
 		Role:      role,
@@ -29,5 +29,8 @@ func Save2Mysql(ctx context.Context, convID string, role model.MessageRole, cont
 		Seq:       seq,
 		CreatedAt: time.Now(),
 	})
+	if err != nil {
+		return err
+	}
 	return nil
 }

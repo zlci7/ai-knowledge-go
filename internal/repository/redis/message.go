@@ -63,7 +63,7 @@ func AddAndGetContext(ctx context.Context, convID string, userMsg Message) ([]Me
 		newSummary, err := llm.GenerateNewSummary(currentSummary, toSummarizeMsgs)
 		if err == nil {
 			// 更新摘要并移除旧消息
-			Rdb.Set(ctx, sumKey, newSummary, ttl)
+			Rdb.Set(ctx, sumKey, newSummary, 0)
 			Rdb.LTrim(ctx, msgKey, int64(k), -1)
 
 			// 更新返回给 Service 的变量

@@ -41,16 +41,23 @@ func (s *ChatService) Chat(ctx context.Context, req dto.ChatReq) (*vo.ChatResp, 
 		req.ConversationID = convID
 	}
 
-	err := Save2Mysql(ctx, req.ConversationID, "user", req.Message)
+	unlock, err := redis.AcquireConversationLock(ctx, req.ConversationID, 10*time.Second)
 	if err != nil {
 		return nil, err
 	}
+	defer unlock()
 
 	//获取上下文
 	msgs, summary, err := redis.AddAndGetContext(ctx, req.ConversationID, redis.Message{
 		Role:    "user",
 		Content: req.Message,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	// 保存用户消息到 mysql（放在 AddAndGetContext 后，避免 Redis 冷启动时回填 + 追加导致重复）
+	err = Save2Mysql(ctx, req.ConversationID, "user", req.Message)
 	if err != nil {
 		return nil, err
 	}
