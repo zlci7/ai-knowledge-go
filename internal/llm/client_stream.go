@@ -12,27 +12,6 @@ import (
 	"strings"
 )
 
-type StreamChunk struct {
-	Delta string
-	Done  bool
-	Err   error
-}
-
-type streamResponseBody struct {
-	Choices []struct {
-		Delta struct {
-			Content string `json:"content"`
-		} `json:"delta"`
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
-		FinishReason string `json:"finish_reason"`
-	} `json:"choices"`
-	Error *struct {
-		Message string `json:"message"`
-	} `json:"error,omitempty"`
-}
-
 // GenerateFromMessagesStream streams LLM deltas to out.
 // out is always closed when this function returns.
 func GenerateFromMessagesStream(ctx context.Context, messages []Message, out chan<- StreamChunk) {

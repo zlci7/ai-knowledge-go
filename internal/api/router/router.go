@@ -22,6 +22,7 @@ func InitRouter() *gin.Engine {
 	{
 		UserRoutes(v1)
 		ChatRoutes(v1)
+		MemoryRoutes(v1)
 	}
 
 	return r

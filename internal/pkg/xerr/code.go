@@ -26,6 +26,11 @@ const (
 	TOKEN_INVALID       = 200011 // Token无效、
 	TOKEN_USER_ID_ERROR = 200012 // 用户ID获取失败
 
+	// 长期记忆模块错误码 (300xxx)
+	MEMORY_CREATE_ERROR = 300001 // 长期记忆创建失败
+	MEMORY_LIST_ERROR   = 300002 // 长期记忆查询失败
+	MEMORY_DELETE_ERROR = 300003 // 长期记忆删除失败
+	MEMORY_NOT_FOUND    = 300004 // 长期记忆不存在
 )
 
 // CodeError 自定义错误结构体

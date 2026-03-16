@@ -26,6 +26,19 @@ services:
     restart: always
     networks:
       - ai-knowledge-go
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports:
+      - 16333:6333
+      - 16334:6334
+    volumes:
+      - ./components/qdrant/data:/qdrant/storage
+    environment:
+      TZ: Asia/Shanghai
+    restart: always
+    networks:
+      - ai-knowledge-go
 
 networks:
   ai-knowledge-go:

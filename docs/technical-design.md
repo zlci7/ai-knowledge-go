@@ -262,7 +262,7 @@ Redis Key 设计：
 ┌─────────────────────────────────────┐
 │ 4. 更新 Redis:                      │
 │    - LTRIM 移除最旧 K 条             │
-│    - SET 新 summary                  │
+│    - SET 新 summary （无TTL）        │
 │    - RPUSH 新用户消息                 │
 │    - EXPIRE 续期 24h                 │
 └────────────┬────────────────────────┘
@@ -286,58 +286,8 @@ Redis Key 设计：
 | `summary_max_tokens` | 300 | 摘要最大 token 数 |
 | `ttl` | 24h | 非活跃会话过期时间 |
 
-#### 4.1.5 Go 伪代码
 
-```go
-type ShortTermMemory struct {
-    rdb       *redis.Client
-    llm       llms.Model
-    windowSize int
-    slideStep  int
-}
-
-func (m *ShortTermMemory) AddAndGetContext(ctx context.Context, convID string, userMsg Message) ([]Message, string, error) {
-    key := fmt.Sprintf("stm:%s:messages", convID)
-    summaryKey := fmt.Sprintf("stm:%s:summary", convID)
-    
-    // 读取当前窗口
-    raw, _ := m.rdb.LRange(ctx, key, 0, -1).Result()
-    messages := deserializeMessages(raw)
-    summary, _ := m.rdb.Get(ctx, summaryKey).Result()
-    
-    // 窗口满了 → 滑动 + 摘要
-    if len(messages) >= m.windowSize {
-        oldest := messages[:m.slideStep]
-        summary = m.summarize(ctx, summary, oldest)
-        
-        // 原子操作: 移除旧消息 + 更新摘要
-        pipe := m.rdb.Pipeline()
-        pipe.LTrim(ctx, key, int64(m.slideStep), -1)
-        pipe.Set(ctx, summaryKey, summary, 24*time.Hour)
-        pipe.Exec(ctx)
-        
-        messages = messages[m.slideStep:]
-    }
-    
-    // 追加新消息
-    m.rdb.RPush(ctx, key, serialize(userMsg))
-    m.rdb.Expire(ctx, key, 24*time.Hour)
-    
-    return messages, summary, nil
-}
-
-func (m *ShortTermMemory) summarize(ctx context.Context, oldSummary string, msgs []Message) string {
-    prompt := fmt.Sprintf(
-        "请将以下对话内容与已有摘要合并，生成简洁的摘要要点（不超过300字）：\n\n"+
-        "已有摘要：%s\n\n新对话：\n%s",
-        oldSummary, formatMessages(msgs),
-    )
-    result, _ := llms.GenerateFromSinglePrompt(ctx, m.llm, prompt)
-    return result
-}
-```
-
-#### 4.1.6 持久化兜底
+#### 4.1.5 持久化兜底
 
 Redis 中的短期记忆有 TTL，过期后消息丢失。为此在每次对话结束（或异步定时）将完整消息写入 MySQL `messages` 表，实现持久化兜底。用户可通过「历史对话」功能查看。
 
@@ -355,7 +305,7 @@ Redis 中的短期记忆有 TTL，过期后消息丢失。为此在每次对话�
 
 | 维度 | 长期记忆 | 知识库文档 |
 |------|---------|-----------|
-| 录入方式 | 用户主动输入 / 对话中提取 | 管理员上传文档 |
+| 录入方式 | 用户主动输入  | 管理员上传文档 |
 | 粒度 | 单条事实/偏好（短文本） | 完整文档 → 分块 |
 | 示例 | "张三偏好用 Python"、"项目X的截止日期是6月30日" | 技术规范.pdf、API文档.md |
 | 存储 | MySQL (原文) + Qdrant (向量) | MySQL (元数据) + Qdrant (分块向量) |
@@ -398,19 +348,18 @@ Qdrant collection `long_term_memories`:
 
 #### 4.2.4 录入流程
 
+你这个方案的优点很明确：
+
+精准可控：用户主动录入，记忆质量高，减少“误记忆/幻觉记忆”。
+实现简单：不需要先做“是否该记忆”的模型判定链路，开发复杂度低很多。
+可审计可解释：每条长期记忆都有明确来源（用户输入），便于追踪和删除。
+
 ```
-用户输入: "记住: 我偏好使用 Vim 编辑器"
+用户通过接口输入: "我偏好使用 Vim 编辑器"
      │
      ▼
 ┌────────────────────────────────────┐
-│ 1. 解析意图 (是否为记忆录入指令)    │
-│    - 关键词匹配: "记住"/"记录"      │
-│    - 或 LLM 意图分类                │
-└──────────────┬─────────────────────┘
-               │
-               ▼
-┌────────────────────────────────────┐
-│ 2. 提取记忆内容                     │
+│ 2. 主动输入                         │
 │    content = "偏好使用 Vim 编辑器"   │
 │    category = "preference"          │
 └──────────────┬─────────────────────┘

@@ -25,6 +25,12 @@ func init() {
 	message[TOKEN_INVALID] = "Token无效"
 	message[TOKEN_USER_ID_ERROR] = "用户ID获取失败"
 
+	// --- 长期记忆模块错误 300xxx ---
+	message[MEMORY_CREATE_ERROR] = "长期记忆创建失败"
+	message[MEMORY_LIST_ERROR] = "长期记忆查询失败"
+	message[MEMORY_DELETE_ERROR] = "长期记忆删除失败"
+	message[MEMORY_NOT_FOUND] = "记忆不存在"
+
 }
 
 func MapErrMsg(errcode uint32) string {

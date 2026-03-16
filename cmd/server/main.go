@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -13,6 +14,8 @@ import (
 	"ai-knowledge-go/internal/pkg/idgen"
 	"ai-knowledge-go/internal/repository/mysql"
 	"ai-knowledge-go/internal/repository/redis"
+	"ai-knowledge-go/internal/repository/vector"
+	"ai-knowledge-go/internal/service"
 )
 
 func main() {
@@ -37,6 +40,18 @@ func main() {
 		log.Fatalf("❌ 初始化雪花算法失败: %v", err)
 	}
 	fmt.Println("✅ 雪花算法初始化成功！")
+
+	// 4.1 初始化 Qdrant 及 collection
+	if err := vector.InitQdrant(context.Background()); err != nil {
+		log.Fatalf("❌ 初始化Qdrant失败: %v", err)
+	}
+	fmt.Println("✅ Qdrant 初始化成功！")
+
+	// 4.2 启动长期记忆异步向量任务消费
+	if err := service.MemoryAsync.Start(context.Background()); err != nil {
+		log.Fatalf("❌ 启动长期记忆异步任务失败: %v", err)
+	}
+	fmt.Println("✅ 长期记忆异步任务已启动")
 
 	// // 4.5 初始化布隆过滤器（防止缓存穿透）
 	// if err := bloom.InitProductBloom(); err != nil {
@@ -85,6 +100,10 @@ func main() {
 	<-quit
 
 	fmt.Println("\n🛑 收到停止信号，正在关闭...")
+
+	// 停止异步任务协程
+	service.MemoryAsync.Stop()
+	fmt.Println("✅ 长期记忆异步任务已停止")
 
 	// 关闭数据库连接
 	if sqlDB, err := mysql.DB.DB(); err == nil {
