@@ -20,8 +20,10 @@ type MemoryAsyncService struct {
 	wg     sync.WaitGroup
 }
 
+// MemoryAsync 管理长期记忆向量化任务的异步调度与消费。
 var MemoryAsync = new(MemoryAsyncService)
 
+// Start 启动异步处理服务，先回放待处理任务，再开启调度与消费协程。
 func (s *MemoryAsyncService) Start(parent context.Context) error {
 	ctx, cancel := context.WithCancel(parent)
 	s.cancel = cancel
@@ -36,6 +38,7 @@ func (s *MemoryAsyncService) Start(parent context.Context) error {
 	return nil
 }
 
+// Stop 停止异步服务并等待所有后台协程退出。
 func (s *MemoryAsyncService) Stop() {
 	if s.cancel != nil {
 		s.cancel()
@@ -43,6 +46,7 @@ func (s *MemoryAsyncService) Stop() {
 	s.wg.Wait()
 }
 
+// schedulerLoop 定时将到期的延迟任务移动到就绪队列，供消费者拉取处理。
 func (s *MemoryAsyncService) schedulerLoop(ctx context.Context) {
 	defer s.wg.Done()
 	ticker := time.NewTicker(1 * time.Second)
@@ -61,6 +65,7 @@ func (s *MemoryAsyncService) schedulerLoop(ctx context.Context) {
 	}
 }
 
+// consumerLoop 持续消费就绪任务，失败时进入重试或死信流程。
 func (s *MemoryAsyncService) consumerLoop(ctx context.Context) {
 	defer s.wg.Done()
 	for {
@@ -89,6 +94,7 @@ func (s *MemoryAsyncService) consumerLoop(ctx context.Context) {
 	}
 }
 
+// handleJob 按操作类型执行向量 upsert/delete，并回写数据库同步状态。
 func (s *MemoryAsyncService) handleJob(ctx context.Context, job redisRepo.MemoryVectorJob) error {
 	switch job.Op {
 	case redisRepo.MemoryVectorOpUpsert:
@@ -124,6 +130,7 @@ func (s *MemoryAsyncService) handleJob(ctx context.Context, job redisRepo.Memory
 	}
 }
 
+// retryOrDLQ 按重试次数决定回退重试或写入死信队列，并同步失败信息。
 func (s *MemoryAsyncService) retryOrDLQ(ctx context.Context, job redisRepo.MemoryVectorJob, cause error) {
 	retryMax := config.AppConfig.Memory.Async.RetryMax
 	nextAttempt := job.Attempt + 1
@@ -152,6 +159,7 @@ func (s *MemoryAsyncService) retryOrDLQ(ctx context.Context, job redisRepo.Memor
 	}
 }
 
+// enqueuePendingJobs 启动时回放数据库中的待同步记录，避免任务丢失。
 func (s *MemoryAsyncService) enqueuePendingJobs(ctx context.Context) error {
 	memories, err := mysql.Memory.ListPendingForReplay(ctx, 500)
 	if err != nil {
@@ -179,6 +187,7 @@ func (s *MemoryAsyncService) enqueuePendingJobs(ctx context.Context) error {
 	return nil
 }
 
+// backoffDuration 基于尝试次数计算指数退避时长。
 func backoffDuration(attempt int) time.Duration {
 	base := config.AppConfig.Memory.Async.RetryBaseSeconds
 	if base <= 0 {
@@ -189,6 +198,7 @@ func backoffDuration(attempt int) time.Duration {
 	return time.Duration(base*multiplier) * time.Second
 }
 
+// truncateErr 截断错误信息，防止超长文本写入存储。
 func truncateErr(errMsg string, maxLen int) string {
 	if len(errMsg) <= maxLen {
 		return errMsg

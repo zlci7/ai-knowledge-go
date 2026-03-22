@@ -14,9 +14,10 @@ import (
 
 type UserService struct{}
 
+// User 提供用户注册与登录等身份相关服务。
 var User = new(UserService)
 
-// Register 接收 DTO，返回 VO
+// Register 完成用户名校验、密码加密与用户创建，并返回注册结果。
 func (s *UserService) Register(req dto.UserRegisterReq) (*vo.UserRegisterResp, error) {
 	// 1. 业务校验
 	exist, err := mysql.User.ExistOrNotByUsername(req.Username)
@@ -33,7 +34,7 @@ func (s *UserService) Register(req dto.UserRegisterReq) (*vo.UserRegisterResp, e
 		return nil, xerr.NewErrCode(xerr.USER_ENCRYPT_ERROR)
 	}
 
-	// 3️⃣ DTO → Model 转换（在 Service 层完成）
+	// 3. DTO -> Model 转换（在 Service 层完成）
 	userModel := &model.User{
 		Username: req.Username,
 		Password: password,
@@ -44,17 +45,17 @@ func (s *UserService) Register(req dto.UserRegisterReq) (*vo.UserRegisterResp, e
 		return nil, xerr.NewErrCode(xerr.USER_CREATE_ERROR)
 	}
 
-	// 5️⃣ Model → VO 转换（在 Service 层完成）
+	// 5. Model -> VO 转换（在 Service 层完成）
 	resp := &vo.UserRegisterResp{
 		Username: userModel.Username,
 		UserID:   uint(userModel.ID),
 	}
 
-	// 6️⃣ 返回 VO（不是 Model）
+	// 6. 返回 VO（不是 Model）
 	return resp, nil
 }
 
-// Login 接收 DTO，返回 VO
+// Login 校验账户密码并签发访问令牌，返回登录响应对象。
 func (s *UserService) Login(req dto.UserLoginReq) (*vo.UserLoginResp, error) {
 	// 1. 查找用户（DAO 返回 Model）
 	user, err := mysql.User.GetUserByUsername(req.Username)
@@ -74,12 +75,12 @@ func (s *UserService) Login(req dto.UserLoginReq) (*vo.UserLoginResp, error) {
 		return nil, xerr.NewErrCode(xerr.TOKEN_GEN_ERROR)
 	}
 
-	// 4️⃣ Model → VO 转换
+	// 4. Model -> VO 转换
 	resp := &vo.UserLoginResp{
 		Token:    token,
 		UserInfo: vo.NewUserInfo(user), // 使用 VO 的构造函数
 	}
 
-	// 5️⃣ 返回 VO
+	// 5. 返回 VO
 	return resp, nil
 }

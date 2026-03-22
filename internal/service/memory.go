@@ -13,8 +13,10 @@ import (
 
 type MemoryService struct{}
 
+// Memory 提供长期记忆的增删查能力。
 var Memory = new(MemoryService)
 
+// Create 创建一条长期记忆，并投递向量化入库任务到异步队列。
 func (s *MemoryService) Create(ctx context.Context, userID uint64, req dto.MemoryCreateReq) (*vo.MemoryItem, error) {
 	memory := &model.LongTermMemory{
 		UserID:       userID,
@@ -44,6 +46,7 @@ func (s *MemoryService) Create(ctx context.Context, userID uint64, req dto.Memor
 	return &resp, nil
 }
 
+// List 查询用户的长期记忆列表，并转换为接口返回对象。
 func (s *MemoryService) List(ctx context.Context, userID uint64) ([]vo.MemoryItem, error) {
 	memories, err := mysql.Memory.ListByUserID(ctx, userID)
 	if err != nil {
@@ -57,6 +60,7 @@ func (s *MemoryService) List(ctx context.Context, userID uint64) ([]vo.MemoryIte
 	return resp, nil
 }
 
+// Delete 软删除指定记忆，并异步删除向量库中的对应向量点。
 func (s *MemoryService) Delete(ctx context.Context, userID, id uint64) error {
 	rows, err := mysql.Memory.SoftDeleteByID(ctx, id, userID)
 	if err != nil {

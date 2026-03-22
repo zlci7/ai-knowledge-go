@@ -9,8 +9,10 @@ import (
 	"time"
 )
 
+// streamConversationLockTTL 为流式输出预留更长锁时间，覆盖完整生成周期。
 const streamConversationLockTTL = 5 * time.Minute
 
+// ChatStreamEvent 定义流式响应事件格式，供 SSE/WebSocket 统一消费。
 type ChatStreamEvent struct {
 	Type           string `json:"type"`
 	ConversationID string `json:"conversation_id,omitempty"`
@@ -18,7 +20,7 @@ type ChatStreamEvent struct {
 	Error          string `json:"error,omitempty"`
 }
 
-// 流式对话
+// ChatStream 以事件流方式返回模型增量输出，并在结束后持久化完整回复。
 func (s *ChatService) ChatStream(ctx context.Context, userID uint64, req dto.ChatReq) (<-chan ChatStreamEvent, error) {
 	llmContext, unlock, err := s.prepareChatContext(ctx, userID, &req, streamConversationLockTTL)
 	if err != nil {
@@ -102,7 +104,7 @@ func (s *ChatService) ChatStream(ctx context.Context, userID uint64, req dto.Cha
 	return streamEvents, nil
 }
 
-// 发送流式事件
+// emitStreamEvent 在上下文未取消时发送流事件，发送失败返回 false 终止上游流程。
 func emitStreamEvent(ctx context.Context, out chan<- ChatStreamEvent, event ChatStreamEvent) bool {
 	select {
 	case out <- event:

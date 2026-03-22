@@ -16,10 +16,13 @@ import (
 
 type ChatService struct{}
 
+// Chat 提供单轮非流式对话能力。
 var Chat = new(ChatService)
 
+// chatConversationLockTTL 控制会话锁时长，避免并发写入同一会话导致上下文错乱。
 const chatConversationLockTTL = 10 * time.Second
 
+// Chat 处理用户消息，生成助手回复并写回存储层。
 func (s *ChatService) Chat(ctx context.Context, userID uint64, req dto.ChatReq) (*vo.ChatResp, error) {
 	llmContext, unlock, err := s.prepareChatContext(ctx, userID, &req, chatConversationLockTTL)
 	if err != nil {
@@ -42,6 +45,7 @@ func (s *ChatService) Chat(ctx context.Context, userID uint64, req dto.ChatReq) 
 	}, nil
 }
 
+// prepareChatContext 确保会话存在并构建本轮调用 LLM 所需的上下文消息。
 func (s *ChatService) prepareChatContext(ctx context.Context, userID uint64, req *dto.ChatReq, lockTTL time.Duration) ([]llm.Message, func(), error) {
 	if err := s.ensureConversation(ctx, userID, req); err != nil {
 		return nil, nil, err
@@ -70,6 +74,7 @@ func (s *ChatService) prepareChatContext(ctx context.Context, userID uint64, req
 	return s.buildLLMContext(ctx, userID, req.Message, msgs, summary), unlock, nil
 }
 
+// ensureConversation 在请求未携带会话 ID 时创建新会话并回填到请求对象。
 func (s *ChatService) ensureConversation(ctx context.Context, userID uint64, req *dto.ChatReq) error {
 	if req.ConversationID != "" {
 		return nil
@@ -96,6 +101,7 @@ func (s *ChatService) ensureConversation(ctx context.Context, userID uint64, req
 	return nil
 }
 
+// buildLLMContext 组装系统提示、长期记忆、摘要与历史消息，形成完整模型输入。
 func (s *ChatService) buildLLMContext(ctx context.Context, userID uint64, userMessage string, msgs []redis.Message, summary string) []llm.Message {
 	llmContext := []llm.Message{{Role: "system", Content: "You are a helpful assistant."}}
 
@@ -126,6 +132,7 @@ func (s *ChatService) buildLLMContext(ctx context.Context, userID uint64, userMe
 	return llmContext
 }
 
+// persistAssistantReply 校验并落库助手回复，同时同步写入 Redis 会话上下文。
 func (s *ChatService) persistAssistantReply(ctx context.Context, convID, reply string) error {
 	if strings.TrimSpace(reply) == "" {
 		return errors.New("empty assistant reply")

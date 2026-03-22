@@ -9,12 +9,15 @@ import (
 )
 
 const (
+	// longTermMemoryTopK 控制长期记忆向量召回条数。
 	longTermMemoryTopK          = 3
+	// longTermMemoryScoreThr 控制召回相似度下限，避免注入弱相关记忆。
 	longTermMemoryScoreThr      = 0.75
+	// longTermMemoryBudgetTimeout 为长期记忆检索分配的最大耗时预算（毫秒）。
 	longTermMemoryBudgetTimeout = 600 // milliseconds
 )
 
-// 检索长期记忆
+// retrieveLongTermMemories 将用户问题改写后执行向量检索，并返回可用记忆文本。
 func retrieveLongTermMemories(ctx context.Context, userID uint64, userMessage string) ([]string, error) {
 	rewritten, err := RewriteForRetrieval(ctx, userMessage)
 	if err != nil {
@@ -42,7 +45,7 @@ func retrieveLongTermMemories(ctx context.Context, userID uint64, userMessage st
 	return memories, nil
 }
 
-// 格式化长期记忆系统提示词
+// formatLongTermMemorySystemPrompt 将召回记忆格式化为系统提示词，约束模型使用范围。
 func formatLongTermMemorySystemPrompt(memories []string) string {
 	if len(memories) == 0 {
 		return ""

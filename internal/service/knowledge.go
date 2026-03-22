@@ -41,13 +41,16 @@ const (
 )
 
 var (
+	// Knowledge 提供知识库文档的上传、查询与删除能力。
 	Knowledge = new(KnowledgeService)
 
+	// blankLineSplitRegex 用于按空行分段，作为初始切分边界。
 	blankLineSplitRegex = regexp.MustCompile(`\n\s*\n+`)
 )
 
 type KnowledgeService struct{}
 
+// Upload 处理文档上传全流程：校验、存储、解析、分块、向量化与入库。
 func (s *KnowledgeService) Upload(ctx context.Context, userID, kbID uint64, req dto.DocumentUploadReq, file *multipart.FileHeader) (*vo.DocumentUploadResp, error) {
 	if err := s.validateKnowledgeBase(kbID); err != nil {
 		return nil, err
@@ -179,6 +182,7 @@ func (s *KnowledgeService) Upload(ctx context.Context, userID, kbID uint64, req 
 	}, nil
 }
 
+// List 按分页和过滤条件查询知识库文档列表。
 func (s *KnowledgeService) List(ctx context.Context, _ uint64, kbID uint64, req dto.DocumentListReq) (*vo.DocumentListResp, error) {
 	if err := s.validateKnowledgeBase(kbID); err != nil {
 		return nil, err
@@ -226,6 +230,7 @@ func (s *KnowledgeService) List(ctx context.Context, _ uint64, kbID uint64, req 
 	}, nil
 }
 
+// Delete 删除文档及其向量索引，并更新文档状态。
 func (s *KnowledgeService) Delete(ctx context.Context, _ uint64, kbID, docID uint64) (*vo.DocumentDeleteResp, error) {
 	if err := s.validateKnowledgeBase(kbID); err != nil {
 		return nil, err
@@ -276,6 +281,7 @@ func (s *KnowledgeService) Delete(ctx context.Context, _ uint64, kbID, docID uin
 	}, nil
 }
 
+// validateKnowledgeBase 校验请求的知识库是否在当前服务配置范围内。
 func (s *KnowledgeService) validateKnowledgeBase(kbID uint64) error {
 	if kbID != config.AppConfig.Knowledge.DefaultKBID {
 		return xerr.NewErrCode(xerr.KNOWLEDGE_BASE_NOT_FOUND)
@@ -283,6 +289,7 @@ func (s *KnowledgeService) validateKnowledgeBase(kbID uint64) error {
 	return nil
 }
 
+// validateFileHeader 校验上传文件的大小、扩展名和 MIME 类型是否合法。
 func (s *KnowledgeService) validateFileHeader(file *multipart.FileHeader) error {
 	if file.Size <= 0 {
 		return xerr.NewErrCode(xerr.DOCUMENT_PARAM_ERROR)
@@ -304,6 +311,7 @@ func (s *KnowledgeService) validateFileHeader(file *multipart.FileHeader) error 
 	return nil
 }
 
+// readUploadFile 读取上传文件内容，并强制限制最大可读取字节数。
 func readUploadFile(file *multipart.FileHeader, maxSizeBytes int64) ([]byte, error) {
 	src, err := file.Open()
 	if err != nil {
@@ -321,6 +329,7 @@ func readUploadFile(file *multipart.FileHeader, maxSizeBytes int64) ([]byte, err
 	return data, nil
 }
 
+// storeFile 将文件字节流落到本地存储目录并返回最终路径。
 func (s *KnowledgeService) storeFile(kbID, docID uint64, originName string, data []byte) (string, error) {
 	baseDir := config.AppConfig.Knowledge.StorageDir
 	targetDir := filepath.Join(baseDir, fmt.Sprintf("kb_%d", kbID))
@@ -338,6 +347,7 @@ func (s *KnowledgeService) storeFile(kbID, docID uint64, originName string, data
 	return targetPath, nil
 }
 
+// extractTextByTika 调用 Tika 服务提取文档纯文本。
 func (s *KnowledgeService) extractTextByTika(ctx context.Context, fileData []byte, mimeType string) (string, error) {
 	url := strings.TrimRight(config.AppConfig.Tika.URL, "/") + "/tika"
 	req, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewReader(fileData))
@@ -372,6 +382,7 @@ func (s *KnowledgeService) extractTextByTika(ctx context.Context, fileData []byt
 	return text, nil
 }
 
+// semanticChunk 先按语义相似度合并段落，再做长度约束后处理。
 func (s *KnowledgeService) semanticChunk(ctx context.Context, text string) ([]string, error) {
 	segments := splitInitialSegments(text)
 	if len(segments) == 0 {
@@ -416,6 +427,7 @@ func (s *KnowledgeService) semanticChunk(ctx context.Context, text string) ([]st
 	return finalChunks, nil
 }
 
+// splitInitialSegments 将原始文本按空行和句子边界拆为初始片段。
 func splitInitialSegments(text string) []string {
 	normalized := strings.ReplaceAll(text, "\r\n", "\n")
 	normalized = strings.TrimSpace(normalized)
@@ -454,6 +466,7 @@ func splitInitialSegments(text string) []string {
 	return segments
 }
 
+// splitBySentences 按中英文常见句末符号拆分文本。
 func splitBySentences(text string) []string {
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -481,6 +494,7 @@ func splitBySentences(text string) []string {
 	return parts
 }
 
+// isSentenceDelimiter 判断 rune 是否是可用于分句的分隔符。
 func isSentenceDelimiter(r rune) bool {
 	switch r {
 	case '。', '！', '？', '.', '!', '?', ';', '；', '\n':
@@ -490,6 +504,7 @@ func isSentenceDelimiter(r rune) bool {
 	}
 }
 
+// postProcessChunks 合并过短分块并拆分超长分块，输出可用 chunk 列表。
 func postProcessChunks(chunks []string) []string {
 	if len(chunks) == 0 {
 		return nil
@@ -524,6 +539,7 @@ func postProcessChunks(chunks []string) []string {
 	return final
 }
 
+// splitByRuneLength 按 rune 长度切分文本，并支持重叠窗口。
 func splitByRuneLength(text string, maxLen, overlap int) []string {
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -562,6 +578,7 @@ func splitByRuneLength(text string, maxLen, overlap int) []string {
 	return chunks
 }
 
+// cosineSimilarity 计算两条向量的余弦相似度。
 func cosineSimilarity(a, b []float32) float64 {
 	if len(a) == 0 || len(b) == 0 || len(a) != len(b) {
 		return 0
@@ -581,10 +598,12 @@ func cosineSimilarity(a, b []float32) float64 {
 	return dot / (math.Sqrt(normA) * math.Sqrt(normB))
 }
 
+// runeLen 返回字符串的 rune 数量，避免多字节字符长度误差。
 func runeLen(text string) int {
 	return len([]rune(text))
 }
 
+// cleanTags 清洗标签：去空白、去重并保持输入顺序。
 func cleanTags(tags []string) []string {
 	if len(tags) == 0 {
 		return []string{}
@@ -605,6 +624,7 @@ func cleanTags(tags []string) []string {
 	return result
 }
 
+// sanitizeFileName 规范化文件名，移除路径与空白带来的风险。
 func sanitizeFileName(name string) string {
 	name = filepath.Base(name)
 	name = strings.ReplaceAll(name, " ", "_")
@@ -616,6 +636,7 @@ func sanitizeFileName(name string) string {
 	return name
 }
 
+// deleteLocalFile 删除本地文件，不存在时视为成功。
 func deleteLocalFile(path string) error {
 	if strings.TrimSpace(path) == "" {
 		return nil
@@ -626,6 +647,7 @@ func deleteLocalFile(path string) error {
 	return nil
 }
 
+// buildKnowledgePointID 将文档 ID 与分块索引编码为唯一向量点 ID。
 func buildKnowledgePointID(docID uint64, chunkIndex int) (uint64, error) {
 	if chunkIndex < 0 {
 		return 0, fmt.Errorf("invalid chunk index: %d", chunkIndex)
@@ -636,12 +658,14 @@ func buildKnowledgePointID(docID uint64, chunkIndex int) (uint64, error) {
 	return (docID << chunkIDBits) | uint64(chunkIndex), nil
 }
 
+// markFailed 将文档状态标记为失败并记录截断后的错误信息。
 func (s *KnowledgeService) markFailed(docID uint64, chunkCount int, errMsg string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	_ = mysql.Document.UpdateStatus(ctx, docID, model.DocumentStatusFailed, chunkCount, truncateError(errMsg))
 }
 
+// truncateError 截断超长错误文本，避免数据库字段溢出。
 func truncateError(msg string) string {
 	msg = strings.TrimSpace(msg)
 	if len(msg) <= maxErrorMsgLen {
@@ -650,10 +674,12 @@ func truncateError(msg string) string {
 	return msg[:maxErrorMsgLen]
 }
 
+// errorsIsRecordNotFound 判断错误是否为数据库未找到记录。
 func errorsIsRecordNotFound(err error) bool {
 	return errors.Is(err, gorm.ErrRecordNotFound)
 }
 
+// isValidDocumentStatus 校验状态字符串是否属于允许的文档状态集合。
 func isValidDocumentStatus(status string) bool {
 	switch model.DocumentStatus(status) {
 	case model.DocumentStatusUploading,
@@ -668,6 +694,7 @@ func isValidDocumentStatus(status string) bool {
 	}
 }
 
+// isAllowedExt 判断文件扩展名是否在允许上传列表内。
 func isAllowedExt(ext string) bool {
 	switch strings.ToLower(ext) {
 	case "pdf", "txt", "md", "markdown", "html", "htm", "csv", "doc", "docx", "ppt", "pptx", "xls", "xlsx":
@@ -677,6 +704,7 @@ func isAllowedExt(ext string) bool {
 	}
 }
 
+// isAllowedMimeType 判断 MIME 类型是否在允许上传列表内。
 func isAllowedMimeType(mimeType string) bool {
 	if strings.HasPrefix(mimeType, "text/") {
 		return true

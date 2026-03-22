@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// RewriteForRetrieval 将用户原始问题改写为更适合向量召回的单句查询。
 func RewriteForRetrieval(ctx context.Context, userMessage string) (string, error) {
 	prompt := `你是查询重写器。请将用户问题改写成一个“适合向量检索的单句查询”，要求：
 1. 消除指代歧义，补全主语和目标；
