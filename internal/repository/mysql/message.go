@@ -23,6 +23,29 @@ func (d *MessageDao) ListByConversationID(ctx context.Context, convID string) ([
 	return msgs, err
 }
 
+func (d *MessageDao) ListByConversationIDPaged(ctx context.Context, convID string, page, pageSize int) ([]model.Message, int64, error) {
+	db := DB.WithContext(ctx).
+		Model(&model.Message{}).
+		Where("conv_id = ?", convID)
+
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	var msgs []model.Message
+	err := db.Order("created_at ASC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&msgs).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return msgs, total, nil
+}
+
 // GetRecentMessages returns the most recent N messages for a conversation, ordered oldest-first.
 func (d *MessageDao) GetRecentMessages(ctx context.Context, convID string, limit int) ([]model.Message, error) {
 	var msgs []model.Message

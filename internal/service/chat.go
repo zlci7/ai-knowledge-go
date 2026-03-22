@@ -7,12 +7,15 @@ import (
 	"ai-knowledge-go/internal/llm"
 	"ai-knowledge-go/internal/model"
 	"ai-knowledge-go/internal/pkg/idgen"
+	"ai-knowledge-go/internal/pkg/xerr"
 	"ai-knowledge-go/internal/repository/mysql"
 	"ai-knowledge-go/internal/repository/redis"
 	"context"
 	"errors"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type ChatService struct{}
@@ -78,6 +81,9 @@ func (s *ChatService) prepareChatContext(ctx context.Context, userID uint64, req
 // ensureConversation 在请求未携带会话 ID 时创建新会话并回填到请求对象。
 func (s *ChatService) ensureConversation(ctx context.Context, userID uint64, req *dto.ChatReq) error {
 	if req.ConversationID != "" {
+		if err := s.validateConversationOwnership(ctx, userID, req.ConversationID); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -99,6 +105,17 @@ func (s *ChatService) ensureConversation(ctx context.Context, userID uint64, req
 	}
 
 	req.ConversationID = convID
+	return nil
+}
+
+func (s *ChatService) validateConversationOwnership(ctx context.Context, userID uint64, convID string) error {
+	_, err := mysql.Conversation.GetByConvIDAndUserID(ctx, convID, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return xerr.NewErrCode(xerr.CONVERSATION_NOT_FOUND)
+		}
+		return err
+	}
 	return nil
 }
 

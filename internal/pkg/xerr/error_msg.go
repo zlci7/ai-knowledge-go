@@ -31,6 +31,12 @@ func init() {
 	message[MEMORY_DELETE_ERROR] = "长期记忆删除失败"
 	message[MEMORY_NOT_FOUND] = "记忆不存在"
 
+	// --- 会话模块错误 350xxx ---
+	message[CONVERSATION_LIST_ERROR] = "会话列表查询失败"
+	message[CONVERSATION_MESSAGE_LIST_ERROR] = "会话消息查询失败"
+	message[CONVERSATION_DELETE_ERROR] = "会话删除失败"
+	message[CONVERSATION_NOT_FOUND] = "会话不存在或无权限"
+
 	// --- 知识文档模块错误 400xxx ---
 	message[DOCUMENT_UPLOAD_ERROR] = "文档上传失败"
 	message[DOCUMENT_LIST_ERROR] = "文档查询失败"

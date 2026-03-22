@@ -24,7 +24,7 @@ func main() {
 	fmt.Printf("✅ GOMAXPROCS设置为:%d\n", runtime.GOMAXPROCS(0))
 
 	// 1. 初始化配置（在所有操作之前）
-	if err := config.InitConfig("../../config"); err != nil { // ⬅️ 修改路径
+	if err := config.InitConfig("./config"); err != nil { // ⬅️ 修改路径
 		log.Fatalf("❌ 初始化配置失败: %v", err)
 	}
 	fmt.Println("✅ 配置加载成功！")

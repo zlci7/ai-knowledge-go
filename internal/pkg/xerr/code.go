@@ -32,6 +32,12 @@ const (
 	MEMORY_DELETE_ERROR = 300003 // 长期记忆删除失败
 	MEMORY_NOT_FOUND    = 300004 // 长期记忆不存在
 
+	// 会话模块错误码 (350xxx)
+	CONVERSATION_LIST_ERROR         = 350001 // 会话列表查询失败
+	CONVERSATION_MESSAGE_LIST_ERROR = 350002 // 会话消息查询失败
+	CONVERSATION_DELETE_ERROR       = 350003 // 会话删除失败
+	CONVERSATION_NOT_FOUND          = 350004 // 会话不存在或无权限
+
 	// 知识文档模块错误码 (400xxx)
 	DOCUMENT_UPLOAD_ERROR       = 400001 // 文档上传失败
 	DOCUMENT_LIST_ERROR         = 400002 // 文档查询失败
