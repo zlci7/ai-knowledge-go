@@ -1,6 +1,7 @@
 package service
 
 import (
+	"ai-knowledge-go/config"
 	"ai-knowledge-go/internal/api/dto"
 	"ai-knowledge-go/internal/api/vo"
 	"ai-knowledge-go/internal/llm"
@@ -119,10 +120,14 @@ func (s *ChatService) buildLLMContext(ctx context.Context, userID uint64, userMe
 		llmContext = append(llmContext, llm.Message{Role: "system", Content: "[对话摘要]: " + summary})
 	}
 
-	// RAG 注入位：当前未实现检索时不注入占位内容，避免脏提示词。
-	ragContext := ""
-	if ragContext != "" {
-		llmContext = append(llmContext, llm.Message{Role: "system", Content: "[RAG召回]: " + ragContext})
+	ragCtx, ragCancel := context.WithTimeout(ctx, time.Duration(ragTimeout)*time.Millisecond)
+	knowledgeChunks, err := retrieveKnowledgeChunks(ragCtx, config.AppConfig.Knowledge.DefaultKBID, userMessage)
+	ragCancel()
+	if err == nil && len(knowledgeChunks) > 0 {
+		ragPrompt := formatKnowledgeRAGSystemPrompt(knowledgeChunks)
+		if ragPrompt != "" {
+			llmContext = append(llmContext, llm.Message{Role: "system", Content: ragPrompt})
+		}
 	}
 
 	for _, msg := range msgs {

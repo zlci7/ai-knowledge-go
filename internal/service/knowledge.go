@@ -140,6 +140,7 @@ func (s *KnowledgeService) Upload(ctx context.Context, userID, kbID uint64, req 
 			s.markFailed(doc.ID, 0, err.Error())
 			return nil, xerr.NewErrCode(xerr.DOCUMENT_UPLOAD_ERROR)
 		}
+		sparse := encodeBM25Sparse(chunk)
 		pointID, err := buildKnowledgePointID(doc.ID, i)
 		if err != nil {
 			s.markFailed(doc.ID, 0, err.Error())
@@ -149,6 +150,7 @@ func (s *KnowledgeService) Upload(ctx context.Context, userID, kbID uint64, req 
 		points = append(points, vector.KnowledgeChunkPoint{
 			ID:         pointID,
 			Vector:     vec,
+			Sparse:     sparse,
 			Content:    chunk,
 			KBID:       kbID,
 			DocID:      doc.ID,
